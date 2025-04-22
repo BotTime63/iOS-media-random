@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Random Photo Slideshow</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background-color: #222;
+      color: white;
+      margin: 0;
+      padding: 20px;
+    }
+
+    #header {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    #header h1 {
+      font-size: 20px;
+      margin: 0;
+    }
+
+    #fullscreenToggle {
+      font-size: 14px;
+      padding: 4px 10px;
+      border-radius: 5px;
+      background-color: #444;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    #fullscreenToggle:hover {
+      background-color: #666;
+    }
+
+    input[type="file"] {
+      margin: 20px 0;
+    }
+
+    #slideshow {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 80vh;
+    }
+
+    #slideshow img,
+    #slideshow video {
+      max-width: 90vw;
+      max-height: 80vh;
+      border-radius: 10px;
+      box-shadow: 0 0 10px #000;
+      object-fit: contain;
+    }
+
+    #controls button {
+      margin: 10px 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 5px;
+      background: #444;
+      color: white;
+      cursor: pointer;
+    }
+
+    #controls button:hover {
+      background: #666;
+    }
+
+    #speedControl {
+      margin-top: 10px;
+    }
+
+    #photoCounter,
+    #fileNameDisplay {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #ccc;
+    }
+
+    #fileNameDisplay {
+      font-size: 13px;
+      opacity: 0.8;
+    }
+
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="header">
+    <h1>Random Photo Slideshow</h1>
+    <button id="fullscreenToggle" onclick="toggleFullscreenMode()">⛶</button>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/*,video/*" multiple>
+
+  <div id="slideshow">
+    <img id="currentImage" src="" alt="Your slideshow will appear here">
+  </div>
+
+  <div id="photoCounter"></div>
+  <div id="fileNameDisplay"></div>
+
+  <div id="controls">
+    <button onclick="prevImage()">Prev</button>
+    <button onclick="togglePause(this)">Pause</button>
+    <button onclick="nextImage()">Next</button>
+    <button onclick="showRandomImage()">Random</button>
+    <button onclick="reshuffle()">Shuffle Again</button>
+    <button onclick="toggleRandomMode(this)">Random Mode: Off</button>
+  </div>
+
+  <div id="speedControl">
+    <label for="intervalRange">Slideshow Speed: <span id="intervalLabel">3</span>s</label><br>
+    <input type="range" id="intervalRange" min="1" max="10" value="3">
+  </div>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const currentImage = document.getElementById('currentImage');
+    const photoCounter = document.getElementById('photoCounter');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const intervalRange = document.getElementById('intervalRange');
+    const intervalLabel = document.getElementById('intervalLabel');
+    const controls = document.getElementById('controls');
+    const speedControl = document.getElementById('speedControl');
+
+    let imageDataUrls = [];
+    let imageNames = [];
+    let currentIndex = 0;
+    let slideshowInterval;
+    let isPaused = false;
+    let intervalTime = 3000;
+    let randomMode = false;
+    let fullscreenMode = false;
+
+    intervalRange.addEventListener('input', () => {
+      intervalTime = parseInt(intervalRange.value) * 1000;
+      intervalLabel.textContent = intervalRange.value;
+      if (!isPaused && imageDataUrls.length) {
+        restartSlideshow();
+      }
+    });
+
+    fileInput.addEventListener('change', () => {
+      const files = Array.from(fileInput.files);
+      if (files.length === 0) return;
+
+      clearInterval(slideshowInterval);
+      imageDataUrls = [];
+      imageNames = [];
+      let loaded = 0;
+
+      shuffle(files);
+
+      files.forEach(file => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          imageDataUrls.push(e.target.result);
+          imageNames.push(file.name);
+          loaded++;
+          if (loaded === files.length) {
+            startSlideshow();
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    });
+
+    function startSlideshow() {
+      currentIndex = 0;
+      showImage();
+      slideshowInterval = setInterval(() => {
+        if (randomMode) {
+          currentIndex = Math.floor(Math.random() * imageDataUrls.length);
+        } else {
+          currentIndex = (currentIndex + 1) % imageDataUrls.length;
+        }
+        showImage();
+      }, intervalTime);
+    }
+
+    function restartSlideshow() {
+      clearInterval(slideshowInterval);
+      slideshowInterval = setInterval(() => {
+        if (randomMode) {
+          currentIndex = Math.floor(Math.random() * imageDataUrls.length);
+        } else {
+          currentIndex = (currentIndex + 1) % imageDataUrls.length;
+        }
+        showImage();
+      }, intervalTime);
+    }
+
+    function showImage() {
+      if (imageDataUrls.length === 0) return;
+
+      const ext = imageNames[currentIndex].split('.').pop().toLowerCase();
+      const isVideo = ['mp4', 'webm', 'ogg'].includes(ext);
+      const mediaElement = isVideo ? createVideoElement() : currentImage;
+
+      if (isVideo) {
+        currentImage.style.display = 'none';
+      } else {
+        currentImage.style.display = 'block';
+      }
+
+      mediaElement.src = imageDataUrls[currentIndex];
+      document.getElementById('slideshow').innerHTML = '';
+      document.getElementById('slideshow').appendChild(mediaElement);
+
+      photoCounter.textContent = `Photo ${currentIndex + 1} of ${imageDataUrls.length}`;
+      fileNameDisplay.textContent = imageNames[currentIndex] || '';
+    }
+
+    function createVideoElement() {
+      const videoElement = document.createElement('video');
+      videoElement.setAttribute('controls', 'true');
+      videoElement.style.maxWidth = '90vw';
+      videoElement.style.maxHeight = '80vh';
+      return videoElement;
+    }
+
+    function togglePause(btn) {
+      if (isPaused) {
+        restartSlideshow();
+        isPaused = false;
+        btn.textContent = "Pause";
+      } else {
+        clearInterval(slideshowInterval);
+        isPaused = true;
+        btn.textContent = "Play";
+      }
+    }
+
+    function nextImage() {
+      if (randomMode) {
+        currentIndex = Math.floor(Math.random() * imageDataUrls.length);
+      } else {
+        currentIndex = (currentIndex + 1) % imageDataUrls.length;
+      }
+      showImage();
+    }
+
+    function prevImage() {
+      currentIndex = (currentIndex - 1 + imageDataUrls.length) % imageDataUrls.length;
+      showImage();
+    }
+
+    function reshuffle() {
+      const zipped = imageDataUrls.map((url, i) => [url, imageNames[i]]);
+      shuffle(zipped);
+      imageDataUrls = zipped.map(([url]) => url);
+      imageNames = zipped.map(([, name]) => name);
+      currentIndex = 0;
+      showImage();
+    }
+
+    function showRandomImage() {
+      if (imageDataUrls.length === 0) return;
+      currentIndex = Math.floor(Math.random() * imageDataUrls.length);
+      showImage();
+    }
+
+    function toggleRandomMode(btn) {
+      randomMode = !randomMode;
+      btn.textContent = `Random Mode: ${randomMode ? "On" : "Off"}`;
+    }
+
+    function toggleFullscreenMode() {
+      fullscreenMode = !fullscreenMode;
+
+      const elementsToHide = [
+        document.getElementById('fileInput'),
+        document.getElementById('controls'),
+        document.getElementById('speedControl'),
+        fileNameDisplay,
+        photoCounter
+      ];
+
+      elementsToHide.forEach(el => el.classList.toggle('hidden', fullscreenMode));
+    }
+
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+  </script>
+
+</body>
+</html>
